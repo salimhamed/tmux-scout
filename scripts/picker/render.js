@@ -16,6 +16,7 @@ const pidStateCache = new Map()
 const TERMINAL_DISPLAY_MS = 5 * 60 * 1000
 const STATUS_WIDTH = 6
 const AGENT_WIDTH = 9
+const SESSION_WIDTH = 12
 const WINDOW_WIDTH = 20
 const PROJECT_WIDTH = 16
 
@@ -344,8 +345,10 @@ function formatLine(session, now, currentPane) {
   const tag = statusTag(session, now)
   const agentInfo = agentDisplay(session.agentType)
   const agent = formatField(agentInfo.label, AGENT_WIDTH, agentInfo.color)
+  const tmuxSessionName = pane && pane.sessionName ? pane.sessionName : session.tmuxSessionName || '-'
   const windowName = pane && pane.windowName ? pane.windowName : session.tmuxWindowName || '-'
   const projectName = path.basename(session.workingDirectory || '?')
+  const tmuxSession = formatField(tmuxSessionName, SESSION_WIDTH, '34')
   const window = formatField(windowName, WINDOW_WIDTH, '36')
   const project = formatField(projectName, PROJECT_WIDTH, '37')
   const title = session.sessionTitle ? `\x1b[2m"${String(session.sessionTitle).replace(/[\r\n\t]+/g, ' ').slice(0, 50)}"\x1b[0m` : ''
@@ -368,7 +371,7 @@ function formatLine(session, now, currentPane) {
 
   const paneId = session.tmuxPane || 'UNBOUND'
   const sessionId = String(session.sessionId || '').replace(/[\r\n\t]+/g, '_')
-  return `${paneId}\t${cur} ${tag} ${agent} ${window} ${project} ${title}${detail}\t${sessionId}`
+  return `${paneId}\t${cur} ${tag} ${agent} ${tmuxSession} ${window} ${project} ${title}${detail}\t${sessionId}`
 }
 
 function run(file, pane, cached) {
@@ -388,9 +391,10 @@ function run(file, pane, cached) {
 
   const hStatus = 'STATUS'.padEnd(STATUS_WIDTH)
   const hAgent = 'AGENT'.padEnd(AGENT_WIDTH)
+  const hSession = 'SESSION'.padEnd(SESSION_WIDTH)
   const hWindow = 'WINDOW'.padEnd(WINDOW_WIDTH)
   const hProject = 'PROJECT'.padEnd(PROJECT_WIDTH)
-  console.log(`_\t  ${hStatus} ${hAgent} ${hWindow} ${hProject} TITLE\t_`)
+  console.log(`_\t  ${hStatus} ${hAgent} ${hSession} ${hWindow} ${hProject} TITLE\t_`)
 
   if (active.length === 0) {
     console.log('NONE\tNo active sessions found.\t')

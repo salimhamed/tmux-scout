@@ -1265,6 +1265,57 @@ test('sync discovers tmux agent panes without an existing hook snapshot', () => 
   assert.strictEqual(stats.reconcile.discoveryUpdates, 0)
 })
 
+test('sync discovery falls back to the pane working directory for the project label', () => {
+  // A pane-discovered agent has no SessionStart hook, so it has no reported cwd.
+  // Instead of showing "?", the project should come from the pane's current path.
+  const now = Date.now()
+  const panePid = 555052
+  const agentPid = 555053
+  const status = { version: 1, lastUpdated: now, sessions: {} }
+  const panes = new Map([['%79', {
+    paneId: '%79',
+    panePid,
+    currentCommand: 'zsh',
+    paneDead: false,
+    sessionName: 'work',
+    windowIndex: 1,
+    windowName: 'agent',
+    currentPath: '/Users/dev/code/my-project'
+  }]])
+  panes.tmuxAvailable = true
+
+  const paneShell = { pid: panePid, ppid: 1, command: '/bin/zsh', args: '-zsh', commandLine: '-zsh', basename: 'zsh', startedAtMs: now - 600000 }
+  const claudeProc = { pid: agentPid, ppid: panePid, command: '/opt/homebrew/bin/claude', args: 'claude', commandLine: 'claude', basename: 'claude', startedAtMs: now - 5000 }
+  const processTable = {
+    byPid: new Map([[paneShell.pid, paneShell], [claudeProc.pid, claudeProc]]),
+    childrenByPpid: new Map([[1, [paneShell]], [panePid, [claudeProc]]])
+  }
+  const stats = sync.createStats()
+
+  sync.discoverPaneSessions(status, panes, processTable, stats, { now, writeSession: false, writeStatus: false })
+
+  const session = status.sessions[sync.discoverySessionId('claude', '%79')]
+  assert.ok(session, 'discovered session should be registered')
+  assert.strictEqual(session.workingDirectory, '/Users/dev/code/my-project', 'project should fall back to the pane current path')
+})
+
+test('formatLine renders a tmux session-name column before the window column', () => {
+  const now = Date.now()
+  const session = {
+    sessionId: 's1',
+    agentType: 'claude',
+    phase: 'running',
+    status: 'working',
+    tmuxPane: '%7',
+    sessionTitle: 'hello',
+    _tmuxPaneSnapshot: { paneId: '%7', sessionName: 'mysess', windowName: 'mywin', paneDead: false }
+  }
+  const plain = formatLine(session, now, '%7').replace(/\x1b\[[0-9;]*m/g, '')
+  assert.ok(plain.includes('mysess'), 'row should include the tmux session name')
+  assert.ok(plain.includes('mywin'), 'row should include the window name')
+  assert.ok(plain.indexOf('mysess') < plain.indexOf('mywin'), 'SESSION column must precede WINDOW column')
+})
+
 test('sync removes discovered placeholder when a real hook session exists in the same pane', () => {
   const now = Date.now()
   const panePid = 555060

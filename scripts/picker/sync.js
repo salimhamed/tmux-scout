@@ -159,7 +159,9 @@ function discoveryMetadata(sessionId, pane, hit, now) {
     sessionId,
     agentType: hit.agentType,
     startedAt: Number.isFinite(proc.startedAtMs) ? proc.startedAtMs : now,
-    workingDirectory: undefined,
+    // No SessionStart hook fired for this pane-discovered agent, so fall back to the
+    // pane's working directory for the project label instead of showing "?".
+    workingDirectory: pane.currentPath || undefined,
     tmuxPane: pane.paneId,
     tmuxSessionName: pane.sessionName,
     tmuxWindowIndex: pane.windowIndex,
@@ -316,7 +318,7 @@ function getPaneSnapshot() {
   const panes = new Map()
   panes.tmuxAvailable = false
   try {
-    const output = execSync('tmux list-panes -a -F "#{pane_id}\t#{pane_pid}\t#{pane_current_command}\t#{pane_dead}\t#{session_name}\t#{window_index}\t#{window_name}"', {
+    const output = execSync('tmux list-panes -a -F "#{pane_id}\t#{pane_pid}\t#{pane_current_command}\t#{pane_dead}\t#{session_name}\t#{window_index}\t#{window_name}\t#{pane_current_path}"', {
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore']
     }).trim()
@@ -325,7 +327,7 @@ function getPaneSnapshot() {
     if (!output) return panes
 
     for (const line of output.split('\n')) {
-      const [paneId, panePid, currentCommand, paneDead, sessionName, windowIndex, windowName] = line.split('\t')
+      const [paneId, panePid, currentCommand, paneDead, sessionName, windowIndex, windowName, currentPath] = line.split('\t')
       if (paneId) {
         panes.set(paneId.trim(), {
           paneId: paneId.trim(),
@@ -334,7 +336,8 @@ function getPaneSnapshot() {
           paneDead: paneDead === '1',
           sessionName: sessionName || '',
           windowIndex: Number.parseInt(windowIndex, 10) || 0,
-          windowName: windowName || ''
+          windowName: windowName || '',
+          currentPath: (currentPath || '').trim()
         })
       }
     }
